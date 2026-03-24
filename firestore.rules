@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields: uid, email, displayName, photoURL, updatedAt
+    //
+    // Collection: feeds
+    // Fields: url, title, category, addedBy, createdAt
+    //
+    // Collection: users/{userId}/bookmarks
+    // Fields: uid, title, link, pubDate, source, contentSnippet, createdAt
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    function isValidString(field, maxLen) {
+      return request.resource.data[field] is string && request.resource.data[field].size() <= maxLen;
+    }
+
+    // Domain Validators
+    function isValidUser() {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'updatedAt']) &&
+             isValidString('uid', 128) &&
+             isValidString('email', 256);
+    }
+
+    function isValidBookmark() {
+      return hasOnlyAllowedFields(['uid', 'title', 'link', 'pubDate', 'source', 'contentSnippet', 'createdAt']) &&
+             isValidString('title', 500) &&
+             isValidString('link', 2048);
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isOwner(userId) && isValidUser();
+    }
+
+    // Global Feeds
+    match /feeds/{feedId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (resource.data.addedBy == request.auth.uid);
+    }
+
+    // User Bookmarks
+    match /users/{userId}/bookmarks/{bookmarkId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidBookmark();
+      allow delete: if isOwner(userId);
+    }
+  }
+}

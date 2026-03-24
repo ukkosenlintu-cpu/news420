@@ -1,0 +1,5 @@
+{
+  "name": "PulsePoint",
+  "description": "The ultimate mega news aggregator with AI-powered insights, real-time RSS updates, and a mobile-first experience.",
+  "requestFramePermissions": ["geolocation"]
+}
